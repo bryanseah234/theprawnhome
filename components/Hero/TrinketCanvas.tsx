@@ -6,6 +6,7 @@ const PARTICLE_COUNT = 8; // Keep between 6-10 for performance
 const BOUNCE_DAMPING = 0.8; // Lose some energy when hitting walls
 const FRICTION = 0.995; // Air resistance/Surface friction (approaches 0 over time)
 const RADIUS = 40; 
+const BANNER_HEIGHT = 60; // Bottom marquee height
 
 interface Particle {
   id: number;
@@ -36,19 +37,24 @@ export const TrinketCanvas: React.FC = () => {
     const newParticles: Particle[] = [];
     const width = window.innerWidth;
     const height = window.innerHeight;
+    // Ensure we don't spawn inside the banner area
+    const spawnHeight = height - BANNER_HEIGHT - RADIUS * 2;
+
+    // Shuffle the EMOJI_POOL to ensure unique emojis
+    const shuffledPool = [...EMOJI_POOL].sort(() => 0.5 - Math.random());
 
     for (let i = 0; i < PARTICLE_COUNT; i++) {
       newParticles.push({
         id: i,
         // Spawn somewhat in the middle to avoid immediate wall sticking
         x: Math.random() * (width - 200) + 100,
-        y: Math.random() * (height - 200) + 100,
+        y: Math.random() * (spawnHeight - 200) + 100,
         // Random velocity (-1.6 to 1.6) - Slowed down by 20% (was 4)
         vx: (Math.random() - 0.5) * 3.2,
         vy: (Math.random() - 0.5) * 3.2,
         rotation: Math.random() * 360,
         vRotation: (Math.random() - 0.5) * 2,
-        emoji: EMOJI_POOL[Math.floor(Math.random() * EMOJI_POOL.length)],
+        emoji: shuffledPool[i % shuffledPool.length], // Pick unique from shuffled pool
         isDragging: false,
         element: null
       });
@@ -70,108 +76,143 @@ export const TrinketCanvas: React.FC = () => {
   // The Physics Loop
   const animate = () => {
     const width = window.innerWidth;
-    const height = window.innerHeight; 
+    // Effective height stops at the banner
+    const effectiveHeight = window.innerHeight - BANNER_HEIGHT; 
     
-    physicsParticles.current.forEach((p, index) => {
-      if (!p.element) return;
-
+    // --- PHASE 1: INTEGRATION (Movement) ---
+    physicsParticles.current.forEach((p) => {
       if (p.isDragging) {
         // Follow mouse
         p.x = mouseRef.current.x;
         p.y = mouseRef.current.y;
         
-        // Calculate velocity based on throw
+        // Calculate velocity for throw based on mouse movement
         p.vx = mouseRef.current.x - mouseRef.current.lastX;
         p.vy = mouseRef.current.y - mouseRef.current.lastY;
-        
-        // Reset rotation speed while holding
         p.vRotation = 0;
+
+        // Clamp dragged item to screen bounds immediately
+        // This ensures dragged items don't go behind banner or off screen
+        p.x = Math.max(RADIUS, Math.min(p.x, width - RADIUS));
+        p.y = Math.max(RADIUS, Math.min(p.y, effectiveHeight - RADIUS));
+
       } else {
-        // Apply Velocity
+        // Physics Move
         p.x += p.vx;
         p.y += p.vy;
         p.rotation += p.vRotation;
 
-        // Apply Friction (Slow down over time)
+        // Friction
         p.vx *= FRICTION;
         p.vy *= FRICTION;
         p.vRotation *= FRICTION;
 
-        // Stop completely if very slow (optimization)
+        // Optimization: Stop completely if very slow
         if (Math.abs(p.vx) < 0.01) p.vx = 0;
         if (Math.abs(p.vy) < 0.01) p.vy = 0;
         if (Math.abs(p.vRotation) < 0.01) p.vRotation = 0;
+      }
+    });
 
-        // Wall Collisions (DVD Logo Style)
-        // Left/Right
-        if (p.x < RADIUS) {
-          p.x = RADIUS;
-          p.vx *= -1 * BOUNCE_DAMPING;
-        } else if (p.x > width - RADIUS) {
-          p.x = width - RADIUS;
-          p.vx *= -1 * BOUNCE_DAMPING;
-        }
+    // --- PHASE 2: COLLISION RESOLUTION (Circle vs Circle) ---
+    // Check all unique pairs
+    const particles = physicsParticles.current;
+    for (let i = 0; i < particles.length; i++) {
+      for (let j = i + 1; j < particles.length; j++) {
+        const p1 = particles[i];
+        const p2 = particles[j];
 
-        // Top/Bottom
-        if (p.y < RADIUS) {
-          p.y = RADIUS;
-          p.vy *= -1 * BOUNCE_DAMPING;
-        } else if (p.y > height - RADIUS) {
-          p.y = height - RADIUS;
-          p.vy *= -1 * BOUNCE_DAMPING;
-        }
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const minDistance = RADIUS * 2;
 
-        // Object Collision (Circle vs Circle)
-        for (let j = index + 1; j < physicsParticles.current.length; j++) {
-          const p2 = physicsParticles.current[j];
-          if (p2.isDragging) continue;
+        if (distance < minDistance) {
+          // Collision Detected
+          const overlap = minDistance - distance;
+          const angle = Math.atan2(dy, dx);
+          const nx = Math.cos(angle);
+          const ny = Math.sin(angle);
 
-          const dx = p2.x - p.x;
-          const dy = p2.y - p.y;
-          const distance = Math.sqrt(dx * dx + dy * dy);
-          const minDistance = RADIUS * 2; // Diameter
-
-          if (distance < minDistance) {
-            // Collision detected!
-            
-            // 1. Resolve Overlap (prevent sticking)
-            const overlap = minDistance - distance;
-            const angle = Math.atan2(dy, dx);
-            const moveX = Math.cos(angle) * overlap * 0.5;
-            const moveY = Math.sin(angle) * overlap * 0.5;
-
-            p.x -= moveX;
-            p.y -= moveY;
-            p2.x += moveX;
-            p2.y += moveY;
-
-            // 2. Bounce (Swap Velocities - simple elastic approximation for equal mass)
-            const nx = dx / distance;
-            const ny = dy / distance;
-            
-            // Relative velocity
-            const kx = p.vx - p2.vx;
-            const ky = p.vy - p2.vy;
-            const p1 = kx * nx + ky * ny;
-
-            if (p1 > 0) {
-                // Already moving apart
-            } else {
-                p.vx -= p1 * nx * BOUNCE_DAMPING;
-                p.vy -= p1 * ny * BOUNCE_DAMPING;
-                p2.vx += p1 * nx * BOUNCE_DAMPING;
-                p2.vy += p1 * ny * BOUNCE_DAMPING;
-                
-                // Add some spin on collision
-                p.vRotation += (Math.random() - 0.5) * 5;
-                p2.vRotation += (Math.random() - 0.5) * 5;
-            }
+          // Scenario A: P1 is dragged, P2 is free -> Push P2 away
+          if (p1.isDragging && !p2.isDragging) {
+             p2.x += nx * overlap;
+             p2.y += ny * overlap;
+             // Impart some velocity to P2 based on push direction
+             const p1VelocityTowardsNormal = p1.vx * nx + p1.vy * ny;
+             if (p1VelocityTowardsNormal > 0) {
+                 p2.vx += p1VelocityTowardsNormal * 0.8;
+                 p2.vy += p1VelocityTowardsNormal * 0.8;
+             }
           }
+          // Scenario B: P1 is free, P2 is dragged -> Push P1 away
+          else if (!p1.isDragging && p2.isDragging) {
+             p1.x -= nx * overlap;
+             p1.y -= ny * overlap;
+             // Impart velocity to P1 (normal is P1->P2, so P2 moving towards P1 is negative normal)
+             const p2VelocityTowardsNormal = p2.vx * nx + p2.vy * ny;
+             if (p2VelocityTowardsNormal < 0) {
+                 p1.vx += p2VelocityTowardsNormal * nx * 0.8;
+                 p1.vy += p2VelocityTowardsNormal * ny * 0.8;
+             }
+          }
+          // Scenario C: Both Free -> Elastic Bounce
+          else if (!p1.isDragging && !p2.isDragging) {
+             // 1. Resolve Overlap (half each)
+             p1.x -= nx * overlap * 0.5;
+             p1.y -= ny * overlap * 0.5;
+             p2.x += nx * overlap * 0.5;
+             p2.y += ny * overlap * 0.5;
+
+             // 2. Bounce (Swap momentum)
+             const kx = p1.vx - p2.vx;
+             const ky = p1.vy - p2.vy;
+             const p = kx * nx + ky * ny;
+
+             if (p <= 0) { // Moving towards each other
+                 p1.vx -= p * nx * BOUNCE_DAMPING;
+                 p1.vy -= p * ny * BOUNCE_DAMPING;
+                 p2.vx += p * nx * BOUNCE_DAMPING;
+                 p2.vy += p * ny * BOUNCE_DAMPING;
+                 
+                 // Spin
+                 p1.vRotation += (Math.random() - 0.5) * 5;
+                 p2.vRotation += (Math.random() - 0.5) * 5;
+             }
+          }
+          // Scenario D: Both dragged -> Ignore (User god mode)
         }
       }
+    }
 
-      // Apply transforms directly to DOM (Fastest way)
-      p.element.style.transform = `translate3d(${p.x - 50}px, ${p.y - 50}px, 0) rotate(${p.rotation}deg)`;
+    // --- PHASE 3: WALL CONSTRAINTS ---
+    physicsParticles.current.forEach((p) => {
+        if (!p.isDragging) {
+            // Left/Right
+            if (p.x < RADIUS) {
+              p.x = RADIUS;
+              p.vx *= -1 * BOUNCE_DAMPING;
+            } else if (p.x > width - RADIUS) {
+              p.x = width - RADIUS;
+              p.vx *= -1 * BOUNCE_DAMPING;
+            }
+
+            // Top/Bottom (Bottom respects banner)
+            if (p.y < RADIUS) {
+              p.y = RADIUS;
+              p.vy *= -1 * BOUNCE_DAMPING;
+            } else if (p.y > effectiveHeight - RADIUS) {
+              p.y = effectiveHeight - RADIUS;
+              p.vy *= -1 * BOUNCE_DAMPING;
+            }
+        }
+    });
+
+    // --- PHASE 4: RENDER ---
+    physicsParticles.current.forEach((p) => {
+      if (p.element) {
+        p.element.style.transform = `translate3d(${p.x - 50}px, ${p.y - 50}px, 0) rotate(${p.rotation}deg)`;
+      }
     });
 
     // Update last mouse pos for throw calculation
@@ -183,6 +224,9 @@ export const TrinketCanvas: React.FC = () => {
 
   // Interaction Handlers
   const handleMouseDown = (e: React.MouseEvent | React.TouchEvent, id: number) => {
+    // Prevent default to stop scrolling/selecting while dragging trinkets
+    // e.preventDefault(); // Optional: might block scrolling if not careful
+
     const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
     const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
 

@@ -9,7 +9,9 @@ interface EyeWidgetProps {
 export const EyeWidget: React.FC<EyeWidgetProps> = ({ isActive = false }) => {
   const eyeRef = useRef<HTMLDivElement>(null);
   const [pupilPos, setPupilPos] = useState({ x: 0, y: 0 });
+  const [isBlinking, setIsBlinking] = useState(false);
 
+  // Mouse tracking logic
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!eyeRef.current) return;
@@ -38,11 +40,45 @@ export const EyeWidget: React.FC<EyeWidgetProps> = ({ isActive = false }) => {
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
+  // Random Blink Logic
+  useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    const triggerBlink = () => {
+      setIsBlinking(true);
+      
+      // Open eye after short delay (blink duration)
+      setTimeout(() => {
+        setIsBlinking(false);
+      }, 150);
+
+      // Schedule next blink randomly between 2s and 6s
+      const nextBlinkTime = Math.random() * 4000 + 2000;
+      timeoutId = setTimeout(triggerBlink, nextBlinkTime);
+    };
+
+    // Initial random delay
+    timeoutId = setTimeout(triggerBlink, Math.random() * 3000 + 1000);
+
+    return () => clearTimeout(timeoutId);
+  }, []);
+
   return (
     <Card className={`flex items-center justify-center min-h-[150px] transition-colors duration-500 ${isActive ? 'bg-black' : 'bg-prawn'}`}>
         <div ref={eyeRef} className="relative w-24 h-24 bg-white border-4 border-black rounded-full flex items-center justify-center overflow-hidden">
+            
+            {/* Eyelid - Matches card background to look like skin */}
             <motion.div 
-                className="w-8 h-8 rounded-full"
+                className="absolute top-0 left-0 w-full z-20 pointer-events-none"
+                initial={{ height: "0%" }}
+                animate={{ height: isBlinking ? "100%" : "0%" }}
+                transition={{ duration: 0.1 }}
+                style={{ backgroundColor: isActive ? '#000000' : '#FF4500' }}
+            />
+
+            {/* Pupil */}
+            <motion.div 
+                className="w-8 h-8 rounded-full z-10"
                 style={{
                     x: pupilPos.x,
                     y: pupilPos.y
