@@ -1,0 +1,7 @@
+{
+  "name": "prawnhome",
+  "description": "A Kawaii Brutalist interactive dashboard featuring a parallax hero, bento-grid widgets, and physics-based interactions.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}

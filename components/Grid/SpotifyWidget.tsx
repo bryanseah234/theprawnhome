@@ -1,0 +1,128 @@
+import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { Card } from '../UI/Card';
+import { SpotifyData } from '../../types';
+
+export const SpotifyWidget: React.FC = () => {
+  const [data, setData] = useState<SpotifyData | null>(null);
+  const [loading, setLoading] = useState(true);
+  
+  // Mock fallback state for animation
+  const [mockProgress, setMockProgress] = useState(30);
+
+  useEffect(() => {
+    // Poll for real data
+    const fetchSpotify = async () => {
+      try {
+        const res = await fetch('/api/spotify');
+        if (res.ok) {
+          const json = await res.json();
+          // If we have an error (e.g. missing secrets), we treat it as null/mock
+          if (json.error) {
+            setData(null);
+          } else {
+            setData(json);
+          }
+        }
+      } catch (e) {
+        // Fallback to mock on error
+        setData(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSpotify();
+    const interval = setInterval(fetchSpotify, 10000); // Poll every 10s
+    return () => clearInterval(interval);
+  }, []);
+
+  // Internal timer for smooth progress bar animation
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (data && data.isPlaying && data.duration && data.progress) {
+         // Locally increment progress for smoothness between polls
+         // Note: precise sync is hard without websockets, this is a visual approx
+      } else {
+         setMockProgress((p) => (p >= 100 ? 0 : p + 0.5));
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [data]);
+
+  // Determine what to display
+  const useRealData = data && data.isPlaying;
+  
+  const display = {
+      image: useRealData ? data.albumArt : "https://picsum.photos/200",
+      title: useRealData ? data.title : "Underwater Love",
+      artist: useRealData ? data.artist : "Prawn Star",
+      isPlaying: useRealData ? true : true, // Mock is always playing
+      progressPercent: useRealData && data.progress && data.duration 
+          ? (data.progress / data.duration) * 100 
+          : mockProgress,
+      url: useRealData ? data.url : "#"
+  };
+
+  return (
+    <Card colSpan="md:col-span-2" className="flex flex-col sm:flex-row gap-4 items-center group">
+      {/* Album Art */}
+      <motion.div 
+        className="relative w-24 h-24 sm:w-32 sm:h-32 flex-shrink-0"
+        animate={{ rotate: display.isPlaying ? 360 : 0 }}
+        transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
+      >
+        <a href={display.url} target="_blank" rel="noopener noreferrer" className="block w-full h-full cursor-pointer">
+            <div className="w-full h-full rounded-full bg-black border-4 border-prawn overflow-hidden relative">
+                <img 
+                    src={display.image} 
+                    alt="Album Art" 
+                    className="w-full h-full object-cover opacity-80"
+                />
+                <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-4 h-4 bg-black rounded-full" />
+                </div>
+            </div>
+        </a>
+      </motion.div>
+
+      {/* Info & Controls */}
+      <div className="flex-grow w-full space-y-3">
+        <div className="flex justify-between items-start">
+            <div className="overflow-hidden">
+                <h3 className="text-xl font-bold leading-tight dark:text-white truncate pr-2">
+                    {display.title}
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                    {display.artist}
+                </p>
+            </div>
+            <div className="flex space-x-1 shrink-0">
+                 {display.isPlaying && <div className="w-3 h-3 bg-prawn rounded-full animate-pulse" />}
+            </div>
+        </div>
+
+        {/* Progress Bar */}
+        <div className="w-full h-4 bg-gray-200 dark:bg-gray-700 border-2 border-black dark:border-white rounded-full overflow-hidden">
+          <motion.div 
+            className="h-full bg-prawn"
+            initial={{ width: 0 }}
+            animate={{ width: `${display.progressPercent}%` }}
+            transition={{ ease: "linear", duration: 0.5 }}
+          />
+        </div>
+
+        {/* Controls (Visual Only for now unless robust API control added) */}
+        <div className="flex justify-center gap-6 text-2xl">
+          <button className="hover:scale-110 active:scale-90 transition-transform dark:text-white">⏮</button>
+          <button 
+            className="hover:scale-110 active:scale-90 transition-transform dark:text-white"
+          >
+            {display.isPlaying ? '⏸' : '▶️'}
+          </button>
+          <button className="hover:scale-110 active:scale-90 transition-transform dark:text-white">⏭</button>
+        </div>
+      </div>
+    </Card>
+  );
+};

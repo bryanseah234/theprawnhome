@@ -1,0 +1,68 @@
+import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { Card } from '../UI/Card';
+
+export const FocusTimer: React.FC = () => {
+  const [timeLeft, setTimeLeft] = useState(25 * 60);
+  const [isActive, setIsActive] = useState(false);
+
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval> | null = null;
+
+    if (isActive && timeLeft > 0) {
+      interval = setInterval(() => {
+        setTimeLeft((seconds) => seconds - 1);
+      }, 1000);
+    } else if (timeLeft === 0) {
+      setIsActive(false);
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isActive, timeLeft]);
+
+  const toggleTimer = () => setIsActive(!isActive);
+  const resetTimer = () => {
+    setIsActive(false);
+    setTimeLeft(25 * 60);
+  };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  return (
+    <Card 
+        colSpan="md:col-span-1" 
+        className={`flex flex-col justify-center items-center transition-colors duration-300 ${isActive ? 'border-prawn' : ''}`}
+    >
+      <div className="text-5xl font-bold font-mono mb-6 tracking-wider dark:text-white">
+        {formatTime(timeLeft)}
+      </div>
+      
+      <div className="flex gap-4 w-full">
+        <motion.button
+          onClick={toggleTimer}
+          whileTap={{ scale: 0.9, skewX: -5 }}
+          className={`
+            flex-1 py-3 px-4 font-bold border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]
+            ${isActive ? 'bg-red-500 text-white' : 'bg-prawn text-black'}
+          `}
+        >
+          {isActive ? 'STOP' : 'START'}
+        </motion.button>
+        
+        <motion.button
+          onClick={resetTimer}
+          whileTap={{ scale: 0.9, skewX: 5 }}
+          className="flex-1 py-3 px-4 font-bold bg-white text-black border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:bg-gray-100"
+        >
+          RESET
+        </motion.button>
+      </div>
+    </Card>
+  );
+};
