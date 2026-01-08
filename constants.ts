@@ -11,11 +11,11 @@ export const PRAWN_QUOTES = [
 ];
 
 export const QUICK_LINKS = [
-  { name: "Feeds", url: "https://prawnfeeds.hong-yi.me" },
-  { name: "Projects", url: "https://prawnprojects.hong-yi.me" },
+  { name: "Feeds", url: "https://theprawnfeeds.hong-yi.me" },
+  { name: "Projects", url: "https://theprawnprojects.hong-yi.me" },
   { name: "Website", url: "https://hong-yi.me" },
   { name: "Email", url: "mailto:hello@hong-yi.me" },
-  { name: "Surprise", url: "https://prawnsurprise.hong-yi.me" },
+  { name: "Surprise", url: "https://theprawnsurprise.hong-yi.me" },
 ];
 
 export const EMOJI_POOL = [
