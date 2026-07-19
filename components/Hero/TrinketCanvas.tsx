@@ -27,7 +27,7 @@ interface TrinketCanvasProps {
 
 export const TrinketCanvas: React.FC<TrinketCanvasProps> = ({ explodeTrigger }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const requestRef = useRef<number>();
+  const requestRef = useRef<number | null>(null);
   
   // separate state for rendering (static data) vs refs for physics (mutable high-freq data)
   const [renderableParticles, setRenderableParticles] = useState<Particle[]>([]);
@@ -105,7 +105,7 @@ export const TrinketCanvas: React.FC<TrinketCanvasProps> = ({ explodeTrigger }) 
     requestRef.current = requestAnimationFrame(animate);
 
     return () => {
-      if (requestRef.current) cancelAnimationFrame(requestRef.current);
+      if (requestRef.current !== null) cancelAnimationFrame(requestRef.current);
     };
   }, []);
 
@@ -276,10 +276,10 @@ export const TrinketCanvas: React.FC<TrinketCanvasProps> = ({ explodeTrigger }) 
     if (p) p.isDragging = true;
   };
 
-  const handleMouseMove = (e: any) => {
+  const handleMouseMove = (e: MouseEvent | TouchEvent) => {
     if (mouseRef.current.dragId !== -1) {
-      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+      const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
       mouseRef.current.x = clientX;
       mouseRef.current.y = clientY;
     }

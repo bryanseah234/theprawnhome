@@ -1,4 +1,45 @@
-export default async function handler(request, response) {
+type ApiResponse = {
+  status: (statusCode: number) => {
+    json: (body: SpotifyApiResponse) => unknown;
+  };
+};
+
+type SpotifyApiResponse = {
+  isPlaying: boolean;
+  error?: string;
+  title?: string;
+  artist?: string;
+  albumArt?: string;
+  url?: string;
+  progress?: number;
+  duration?: number;
+};
+
+type SpotifyTokenResponse = {
+  access_token?: string;
+};
+
+type SpotifyArtist = {
+  name: string;
+};
+
+type SpotifyNowPlayingResponse = {
+  is_playing: boolean;
+  item: {
+    name: string;
+    artists: SpotifyArtist[];
+    album: {
+      images: Array<{ url: string }>;
+    };
+    external_urls: {
+      spotify: string;
+    };
+    duration_ms: number;
+  } | null;
+  progress_ms: number;
+};
+
+export default async function handler(_request: unknown, response: ApiResponse) {
   const {
     SPOTIFY_CLIENT_ID,
     SPOTIFY_CLIENT_SECRET,
@@ -26,7 +67,7 @@ export default async function handler(request, response) {
       }),
     });
 
-    const tokenData = await tokenRes.json();
+    const tokenData = await tokenRes.json() as SpotifyTokenResponse;
     
     if (!tokenData.access_token) {
         throw new Error("Failed to get access token");
@@ -42,7 +83,7 @@ export default async function handler(request, response) {
       return response.status(200).json({ isPlaying: false });
     }
 
-    const song = await spotifyRes.json();
+    const song = await spotifyRes.json() as SpotifyNowPlayingResponse;
     
     if (song.item === null) {
       return response.status(200).json({ isPlaying: false });
